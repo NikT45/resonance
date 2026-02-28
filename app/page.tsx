@@ -8,9 +8,14 @@ interface Segment {
   speaker?: string;
 }
 
+interface VoiceInfo {
+  name: string;
+  description: string;
+}
+
 interface GenerateResponse {
   segments: Segment[];
-  voiceMap: Record<string, string>;
+  voiceMap: Record<string, VoiceInfo>;
   audioBase64: string;
   error?: string;
 }
@@ -90,7 +95,7 @@ export default function Home() {
   }
 
   // Build a stable speaker → color index map from the response voiceMap
-  function getSpeakerColorMap(voiceMap: Record<string, string>): Record<string, string> {
+  function getSpeakerColorMap(voiceMap: Record<string, VoiceInfo>): Record<string, string> {
     const colorMap: Record<string, string> = {};
     let idx = 0;
     for (const speaker of Object.keys(voiceMap)) {
@@ -174,21 +179,23 @@ export default function Home() {
             <label className="block text-xs font-sans font-semibold text-zinc-400 tracking-widest uppercase mb-3">
               Voice Cast
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2">
               {Object.entries(result.voiceMap).map(([speaker, voice]) => {
                 const colorClass = speaker === "narrator"
                   ? "text-zinc-300 border-zinc-700 bg-zinc-800/60"
                   : speakerColorMap[speaker] ?? SPEAKER_COLORS[0];
                 const textColorClass = colorClass.split(" ")[0];
                 return (
-                  <span
+                  <div
                     key={speaker}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-sans font-medium ${colorClass}`}
+                    className={`flex items-baseline gap-2 px-3 py-2 rounded-lg border text-xs font-sans ${colorClass}`}
                   >
-                    <span className={`font-bold ${textColorClass}`}>{speaker}</span>
+                    <span className={`font-bold shrink-0 ${textColorClass}`}>{speaker}</span>
                     <span className="text-zinc-500">·</span>
-                    <span className="text-zinc-400">{voice}</span>
-                  </span>
+                    <span className="font-medium text-zinc-300 shrink-0">{voice.name}</span>
+                    <span className="text-zinc-500 shrink-0">—</span>
+                    <span className="text-zinc-500 italic">{voice.description}</span>
+                  </div>
                 );
               })}
             </div>

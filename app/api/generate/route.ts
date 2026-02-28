@@ -3,14 +3,15 @@ import { GoogleGenAI } from "@google/genai";
 import { ElevenLabsClient } from "elevenlabs";
 
 // Voice pool: narrator + up to 5 character slots + overflow
-const VOICE_POOL: Record<string, { id: string; name: string }> = {
-  narrator: { id: "JBFqnCBsd6RMkjVDRZzb", name: "George" },
-  slot0: { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel" },
-  slot1: { id: "ErXwobaYiN019PkySvjV", name: "Antoni" },
-  slot2: { id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli" },
-  slot3: { id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh" },
-  slot4: { id: "VR6AewLTigWG4xSOukaG", name: "Arnold" },
-  overflow: { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi" },
+// Descriptions sourced from ElevenLabs premade voice catalogue
+const VOICE_POOL: Record<string, { id: string; name: string; description: string }> = {
+  narrator: { id: "JBFqnCBsd6RMkjVDRZzb", name: "George",  description: "Raspy, middle-aged British male — purpose-built for narration" },
+  slot0:    { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel",  description: "Calm, young American female — optimised for narration" },
+  slot1:    { id: "ErXwobaYiN019PkySvjV", name: "Antoni",  description: "Well-rounded, young American male — suited for narration" },
+  slot2:    { id: "XrExE9yKIg1WjnnlVkGX", name: "Matilda", description: "Warm, young American female — audiobook specialist" },
+  slot3:    { id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh",    description: "Deep, young American male — narration" },
+  slot4:    { id: "VR6AewLTigWG4xSOukaG", name: "Arnold",  description: "Crisp, middle-aged American male — narration" },
+  overflow: { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi",    description: "Strong, young American female — narration" },
 };
 
 interface Segment {
@@ -22,11 +23,12 @@ interface Segment {
 interface VoiceAssignment {
   voiceId: string;
   voiceName: string;
+  description: string;
 }
 
 function buildVoiceMap(segments: Segment[]): Record<string, VoiceAssignment> {
   const voiceMap: Record<string, VoiceAssignment> = {
-    narrator: { voiceId: VOICE_POOL.narrator.id, voiceName: VOICE_POOL.narrator.name },
+    narrator: { voiceId: VOICE_POOL.narrator.id, voiceName: VOICE_POOL.narrator.name, description: VOICE_POOL.narrator.description },
   };
   let slotIndex = 0;
 
@@ -36,6 +38,7 @@ function buildVoiceMap(segments: Segment[]): Record<string, VoiceAssignment> {
       voiceMap[seg.speaker] = {
         voiceId: VOICE_POOL[slotKey].id,
         voiceName: VOICE_POOL[slotKey].name,
+        description: VOICE_POOL[slotKey].description,
       };
       if (slotIndex < 5) slotIndex++;
     }
@@ -131,10 +134,10 @@ ${text}`;
     const combinedAudio = Buffer.concat(audioBuffers);
     const audioBase64 = combinedAudio.toString("base64");
 
-    // Build clean voice map for response (speaker -> voice name)
-    const responseVoiceMap: Record<string, string> = {};
+    // Build clean voice map for response (speaker -> { name, description })
+    const responseVoiceMap: Record<string, { name: string; description: string }> = {};
     for (const [speaker, assignment] of Object.entries(voiceMap)) {
-      responseVoiceMap[speaker] = assignment.voiceName;
+      responseVoiceMap[speaker] = { name: assignment.voiceName, description: assignment.description };
     }
 
     return NextResponse.json({ segments, voiceMap: responseVoiceMap, audioBase64 });
