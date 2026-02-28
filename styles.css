@@ -281,7 +281,8 @@ h1,
   display: flex;
   align-items: baseline;
   gap: 0.45rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .hero-wheel-window {
@@ -290,13 +291,14 @@ h1,
   align-items: baseline;
   height: 1.1em;
   overflow: hidden;
-  min-width: 7.8ch;
+  min-width: 6ch;
 }
 
 .hero-wheel-text {
   display: inline-block;
   line-height: 1;
   font-family: "Sora", sans-serif;
+  color: var(--ink);
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
@@ -315,60 +317,10 @@ h1,
   color: var(--ink);
 }
 
-.hero-wheel-text.romance {
-  font-family: "Great Vibes", cursive;
-  color: #d7264f;
-}
-
-.hero-wheel-text.mystery {
-  font-family: "Special Elite", serif;
-  color: #3a506b;
-}
-
-.hero-wheel-text.fantasy {
-  font-family: "Cinzel", serif;
-  color: #22c55e;
-}
-
-.hero-wheel-text.sci-fi {
-  font-family: "Orbitron", sans-serif;
-  color: #06b6d4;
-}
-
-.hero-wheel-text.horror {
-  font-family: "Creepster", cursive;
-  color: #7f1d1d;
-}
-
-.hero-wheel-text.comedy {
-  font-family: "Kalam", cursive;
-  color: #f59e0b;
-}
-
-.hero-wheel-text.nonfiction {
-  font-family: "Ubuntu", sans-serif;
-  color: #0f766e;
-}
-
-.hero-wheel-text.historical {
-  font-family: "Playfair Display", serif;
-  color: #92400e;
-}
-
-.hero-subtitle {
-  position: relative;
-  z-index: 1;
-  margin-top: 1rem;
-  max-width: 78ch;
-  color: var(--muted);
-  font-size: 0.95rem;
-  line-height: 1.55;
-}
-
 .story-grid {
   position: relative;
   z-index: 1;
-  margin-top: var(--space-48);
+  margin-top: var(--space-64);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-24);
@@ -421,6 +373,20 @@ h1,
 .section-head h2 {
   font-size: clamp(2rem, 4vw, 2.75rem);
   line-height: 1.15;
+}
+
+.hero-section-head {
+  margin-top: var(--space-32);
+}
+
+.hero-section-head h2 {
+  font-size: clamp(2.3rem, 5.2vw, 4rem);
+  line-height: 1.08;
+}
+
+.story-upload-btn {
+  margin-top: 0.9rem;
+  min-width: 220px;
 }
 
 .genre-panel {
@@ -856,6 +822,11 @@ h1,
 
   .hero-actions {
     flex-direction: column;
+  }
+
+  .story-upload-btn {
+    width: 100%;
+    min-width: 0;
   }
 
   .story-card,
