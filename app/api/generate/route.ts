@@ -91,7 +91,7 @@ async function generateLyriaMusic(
   const targetBytes = Math.ceil(Math.min(durationSeconds, 25) * 48000 * 4);
 
   const WS_URL =
-    `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateMusic?key=${apiKey}`;
+    `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateMusic?key=${apiKey}`;
 
   return new Promise<string | null>((resolve) => {
     let finished = false;
