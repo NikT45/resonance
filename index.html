@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resonance | Hear your Story.</title>
+    <meta
+      name="description"
+      content="Resonance helps families and teams turn books and PDFs into warm, shareable listening experiences."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Sora:wght@500;600;700&family=Cinzel:wght@600;700&family=Creepster&family=Great+Vibes&family=Kalam:wght@400;700&family=Orbitron:wght@500;700&family=Playfair+Display:wght@600;700&family=Special+Elite&family=Ubuntu:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header" id="top">
+        <div class="container header-shell">
+          <a class="brand" href="#top" aria-label="Resonance home">
+            <img src="assets/logo/resonance-logo-book-transparent.png" alt="Resonance" class="brand-logo" />
+          </a>
+
+          <button class="menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="site-nav">
+            Menu
+          </button>
+
+          <nav class="main-nav" id="site-nav" aria-label="Primary">
+            <a href="#product">Product</a>
+            <a href="#demo">Demo</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#docs">Docs</a>
+            <a href="#blog">Blog</a>
+          </nav>
+
+          <div class="header-actions">
+            <a class="btn btn-secondary" href="#demo">See demo</a>
+            <a class="btn btn-primary" href="#pricing">Try it</a>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero section">
+          <div class="container">
+            <div class="hero-shell reveal" data-reveal>
+              <h1>Write Your Script</h1>
+              <p class="hero-carousel-row">
+                Experience Your
+                <span class="hero-wheel-window" aria-live="polite" aria-label="Genre wheel">
+                  <span class="hero-wheel-text fantasy" id="hero-genre-wheel">Fantasy</span>
+                </span>
+              </p>
+              <p class="hero-subtitle">
+                Helping script writers transform written scripts into immersive experiences with audio and visual cues,
+                live sound effects, soundtracks, and storytelling immersion audio with illustrative panels.
+              </p>
+
+              <div class="story-grid" aria-label="Simple workflow">
+                <article class="story-card reveal" data-reveal>
+                  <p class="step-number">01</p>
+                  <h2>Upload Your Script</h2>
+                  <p>Rapidly Write a Script Idea to Pencil Creative Scenes.</p>
+                </article>
+                <article class="story-card reveal" data-reveal>
+                  <p class="step-number">02</p>
+                  <h2>Hear your Story.</h2>
+                  <p>Give your words a voice matched to your genre and mood.</p>
+                </article>
+                <article class="story-card reveal" data-reveal>
+                  <p class="step-number">03</p>
+                  <h2>Expeirence your carousel</h2>
+                  <p>Watch genres filter in one box with distinct colors and fonts.</p>
+                </article>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="product">
+          <div class="container">
+            <div class="section-head reveal" data-reveal>
+              <p class="eyebrow">What you can make</p>
+              <h2>Bring each chapter to life, softly.</h2>
+            </div>
+
+            <div class="feature-grid">
+              <article class="feature-card reveal" data-reveal>
+                <h3>Multi-voice dialogue</h3>
+                <p>Automatically separate narrator and characters so scenes are easy to follow.</p>
+              </article>
+              <article class="feature-card reveal" data-reveal>
+                <h3>Emotion control</h3>
+                <p>Make it calmer, brighter, or more cinematic with one simple slider.</p>
+              </article>
+              <article class="feature-card reveal" data-reveal>
+                <h3>SFX and ambience knobs</h3>
+                <p>Add rain, classroom, forest, or quiet room tone without overwhelming voices.</p>
+              </article>
+              <article class="feature-card reveal" data-reveal>
+                <h3>Shareable audiobooks</h3>
+                <p>Send a private listening link to family, study groups, or classmates.</p>
+              </article>
+              <article class="feature-card reveal" data-reveal>
+                <h3>Friendly defaults</h3>
+                <p>Balanced voice levels and gentle pacing are on by default for first-time users.</p>
+              </article>
+              <article class="feature-card reveal" data-reveal>
+                <h3>Safe libraries</h3>
+                <p>Keep your uploads private and control who can listen to each project.</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="demo">
+          <div class="container">
+            <article class="demo-panel reveal" data-reveal>
+              <div>
+                <p class="eyebrow">Live demo flow</p>
+                <h2>From page to playback in under a minute.</h2>
+                <p>
+                  Upload one file, choose a voice style, and press play. Resonance handles scene timing, chapter
+                  breaks, and voice consistency in the background.
+                </p>
+              </div>
+              <div class="demo-points">
+                <p>Gentle listening presets</p>
+                <p>One-tap chapter skipping</p>
+                <p>Device-safe volume balancing</p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="pricing">
+          <div class="container">
+            <div class="section-head reveal" data-reveal>
+              <p class="eyebrow">Plans</p>
+              <h2>Simple pricing for families and teams.</h2>
+            </div>
+
+            <div class="pricing-grid">
+              <article class="price-card reveal" data-reveal>
+                <h3>Starter</h3>
+                <p class="price">$0<span>/month</span></p>
+                <p>Great for trying your first book.</p>
+                <ul>
+                  <li>2 active projects</li>
+                  <li>Standard voice set</li>
+                  <li>Basic sharing</li>
+                </ul>
+                <a class="btn btn-ghost" href="#">Get started</a>
+              </article>
+
+              <article class="price-card featured reveal" data-reveal>
+                <p class="badge">Most loved</p>
+                <h3>Family</h3>
+                <p class="price">$14<span>/month</span></p>
+                <p>Designed for shared bedtime and study listening.</p>
+                <ul>
+                  <li>10 active projects</li>
+                  <li>Premium voices and ambience</li>
+                  <li>Private family sharing</li>
+                </ul>
+                <a class="btn btn-primary" href="#">Try it</a>
+              </article>
+
+              <article class="price-card reveal" data-reveal>
+                <h3>Studio</h3>
+                <p class="price">$32<span>/month</span></p>
+                <p>For classrooms, creators, and growing teams.</p>
+                <ul>
+                  <li>Unlimited projects</li>
+                  <li>Advanced voice direction</li>
+                  <li>Team collaboration</li>
+                </ul>
+                <a class="btn btn-ghost" href="#">Contact us</a>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="docs">
+          <div class="container">
+            <article class="mini-panel reveal" data-reveal>
+              <h2>Docs that feel human.</h2>
+              <p>
+                Setup guides are written in plain language, with clear examples for parents, students, and creators.
+              </p>
+              <a class="text-link" href="#">Open documentation</a>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="blog">
+          <div class="container">
+            <article class="mini-panel reveal" data-reveal>
+              <h2>Stories from the community.</h2>
+              <p>See how families, teachers, and teams are turning written pages into memorable listening.</p>
+              <a class="text-link" href="#">Read the blog</a>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer section">
+        <div class="container footer-shell">
+          <div>
+            <p class="brand-name">Resonance</p>
+            <p>Private by default. Family-friendly voice settings. Safe sharing controls.</p>
+          </div>
+          <div class="footer-links">
+            <a href="#product">Product</a>
+            <a href="#demo">Demo</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#docs">Docs</a>
+            <a href="#blog">Blog</a>
+          </div>
+          <p class="copyright">© <span id="year"></span> Resonance</p>
+        </div>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
