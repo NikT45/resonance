@@ -424,8 +424,21 @@ h1 {
   gap: var(--space-24);
 }
 
+.upload-page .site-header {
+  position: relative;
+  top: auto;
+  padding-top: var(--space-24);
+}
+
+.upload-page .header-shell {
+  border: 1.5px solid #d8e1f0;
+  box-shadow: 0 16px 36px rgba(31, 41, 55, 0.1);
+}
+
 .studio-card {
   padding: 1rem;
+  border: 1.5px solid #d8e1f0;
+  box-shadow: 0 16px 36px rgba(31, 41, 55, 0.1);
 }
 
 .mode-switch {
@@ -543,6 +556,10 @@ h1 {
 .audio-player {
   width: 100%;
   margin-top: 0.9rem;
+  border: 1.5px solid #d8e1f0;
+  border-radius: 12px;
+  padding: 0.35rem;
+  background: #f8fbff;
 }
 
 .voice-cast,
