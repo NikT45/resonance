@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 
 interface ScriptScene {
   index: number;
@@ -69,12 +69,17 @@ interface SpeakerStyle {
 }
 
 const SPEAKER_STYLES: SpeakerStyle[] = [
-  { chipClass: "speaker-chip-rose", panelClass: "speaker-panel-rose" },
-  { chipClass: "speaker-chip-sky", panelClass: "speaker-panel-sky" },
+  { chipClass: "speaker-chip-rose",    panelClass: "speaker-panel-rose" },
+  { chipClass: "speaker-chip-sky",     panelClass: "speaker-panel-sky" },
   { chipClass: "speaker-chip-emerald", panelClass: "speaker-panel-emerald" },
-  { chipClass: "speaker-chip-violet", panelClass: "speaker-panel-violet" },
-  { chipClass: "speaker-chip-orange", panelClass: "speaker-panel-orange" },
-  { chipClass: "speaker-chip-pink", panelClass: "speaker-panel-pink" },
+  { chipClass: "speaker-chip-violet",  panelClass: "speaker-panel-violet" },
+  { chipClass: "speaker-chip-orange",  panelClass: "speaker-panel-orange" },
+  { chipClass: "speaker-chip-pink",    panelClass: "speaker-panel-pink" },
+];
+
+const SPEAKER_COLORS = [
+  "text-rose-400", "text-sky-400", "text-emerald-400",
+  "text-violet-400", "text-orange-400", "text-pink-400",
 ];
 
 const SAMPLE_TEXT = `INT. COFFEE SHOP - DAY
@@ -103,6 +108,24 @@ Who? Who got there first?
 
 DANIEL
 I don't know. But they left something behind.`;
+
+// ── Time helpers ──────────────────────────────────────────────────────────────
+
+function toSRT(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.round((seconds % 1) * 1000);
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")},${String(ms).padStart(3,"0")}`;
+}
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2,"0")}`;
+}
+
+// ── WAV helpers ───────────────────────────────────────────────────────────────
 
 function writeString(view: DataView, offset: number, str: string) {
   for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
@@ -175,7 +198,8 @@ async function mixAudio(
   let cursor = 0;
   for (let i = 0; i < dialogueLines.length; i++) {
     if (i > 0) {
-      cursor += dialogueLines[i - 1].sceneIndex !== dialogueLines[i].sceneIndex ? GAP_BETWEEN_SCENES : GAP_DLG_TO_DLG;
+      cursor += dialogueLines[i - 1].sceneIndex !== dialogueLines[i].sceneIndex
+        ? GAP_BETWEEN_SCENES : GAP_DLG_TO_DLG;
     }
     startTimes.push(cursor);
     cursor += lineBuffers[i]?.duration ?? 0;
@@ -186,9 +210,7 @@ async function mixAudio(
     try {
       const buf = await decodeB64Audio(sfx.audioBase64);
       sfxDecoded.push({ buffer: buf, startTime: sceneStartTimes[sfx.sceneIndex] ?? sfx.startTime });
-    } catch {
-      // skip
-    }
+    } catch { /* skip */ }
   }
 
   const musicDecoded: { buffer: AudioBuffer; startTime: number }[] = [];
@@ -196,9 +218,7 @@ async function mixAudio(
     try {
       const buf = await decodeB64Audio(music.audioBase64);
       musicDecoded.push({ buffer: buf, startTime: sceneStartTimes[music.sceneIndex] ?? music.startTime });
-    } catch {
-      // skip
-    }
+    } catch { /* skip */ }
   }
 
   const sampleRate = lineBuffers[0]?.sampleRate ?? 44100;
@@ -209,7 +229,11 @@ async function mixAudio(
     musicDecoded.reduce((m, { buffer, startTime }) => Math.max(m, startTime + buffer.duration), 0),
   );
 
-  const offCtx = new OfflineAudioContext(numChannels, Math.max(1, Math.ceil(totalDuration * sampleRate)), sampleRate);
+  const offCtx = new OfflineAudioContext(
+    numChannels,
+    Math.max(1, Math.ceil(totalDuration * sampleRate)),
+    sampleRate,
+  );
 
   for (let i = 0; i < lineBuffers.length; i++) {
     const src = offCtx.createBufferSource();
@@ -228,7 +252,6 @@ async function mixAudio(
         if (abs > peak) peak = abs;
       }
     }
-
     const src = offCtx.createBufferSource();
     src.buffer = buffer;
     const gain = offCtx.createGain();
@@ -252,22 +275,76 @@ async function mixAudio(
   return URL.createObjectURL(new Blob([audioBufferToWav(rendered)], { type: "audio/wav" }));
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function UploadPage() {
   const [inputMode, setInputMode] = useState<"text" | "pdf">("text");
   const [text, setText] = useState(SAMPLE_TEXT);
   const [selectedFileName, setSelectedFileName] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [currentScene, setCurrentScene] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [totalDuration, setTotalDuration] = useState(0);
 
   const prevAudioUrl = useRef<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const isDragging = useRef(false);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+  // ── Audio event listeners ───────────────────────────────────────────────────
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !result?.sceneStartTimes?.length) return;
+
+    const handleTimeUpdate = () => {
+      const t = audio.currentTime;
+      setCurrentTime(t);
+      const times = result.sceneStartTimes;
+      let scene = 0;
+      for (let i = 0; i < times.length; i++) { if (t >= times[i]) scene = i; }
+      setCurrentScene(prev => {
+        if (prev !== scene) {
+          cardRefs.current[scene]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+          return scene;
+        }
+        return prev;
+      });
+    };
+
+    const handleLoadedMetadata = () => setTotalDuration(audio.duration || 0);
+
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    if (audio.readyState >= 1) setTotalDuration(audio.duration || 0);
+    return () => {
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+    };
+  }, [audioUrl, result]);
+
+  // ── Space bar play/pause ────────────────────────────────────────────────────
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.code !== "Space") return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT") return;
+      e.preventDefault();
+      const audio = audioRef.current;
+      if (!audio) return;
+      audio.paused ? audio.play() : audio.pause();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // ── File handler ────────────────────────────────────────────────────────────
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setSelectedFileName(file.name);
 
     const isPlainText = file.type === "text/plain" || file.name.toLowerCase().endsWith(".txt");
@@ -280,15 +357,14 @@ export default function UploadPage() {
       setStatus("Loaded text file. Review and click Generate audio.");
       return;
     }
-
     if (isPdf) {
       setStatus("PDF selected. Paste script text below, then click Generate audio.");
       return;
     }
-
     setStatus("Unsupported file type. Upload a PDF or TXT file.");
   }
 
+  // ── Generate ────────────────────────────────────────────────────────────────
   async function handleGenerate() {
     if (!text.trim()) {
       setStatus("Please paste script text to continue.");
@@ -298,6 +374,9 @@ export default function UploadPage() {
     setLoading(true);
     setStatus("Analyzing script and generating voices...");
     setResult(null);
+    setCurrentScene(0);
+    setCurrentTime(0);
+    setTotalDuration(0);
 
     if (prevAudioUrl.current) {
       URL.revokeObjectURL(prevAudioUrl.current);
@@ -340,25 +419,84 @@ export default function UploadPage() {
     }
   }
 
+  // ── Timeline helpers ────────────────────────────────────────────────────────
+  function sceneEndTime(i: number): number {
+    const times = result?.sceneStartTimes ?? [];
+    if (i + 1 < times.length) return times[i + 1];
+    return totalDuration || (times[times.length - 1] ?? 0) + 5;
+  }
+
+  function scrubTimeline(clientX: number, rect: DOMRect) {
+    if (!audioRef.current || totalDuration <= 0) return;
+    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    audioRef.current.currentTime = frac * totalDuration;
+  }
+
+  function handleTimelineMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    isDragging.current = true;
+    scrubTimeline(e.clientX, e.currentTarget.getBoundingClientRect());
+  }
+
+  function handleTimelineMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (!isDragging.current) return;
+    scrubTimeline(e.clientX, e.currentTarget.getBoundingClientRect());
+  }
+
+  function handleTimelineMouseUp() { isDragging.current = false; }
+
+  function seekToScene(i: number) {
+    if (!audioRef.current || !result?.sceneStartTimes) return;
+    audioRef.current.currentTime = result.sceneStartTimes[i] ?? 0;
+  }
+
+  // ── Derived state ───────────────────────────────────────────────────────────
   function getSpeakerStyleMap(voiceMap: Record<string, VoiceInfo>): Record<string, SpeakerStyle> {
     const styleMap: Record<string, SpeakerStyle> = {};
     let idx = 0;
-
     for (const speaker of Object.keys(voiceMap)) {
       if (speaker === "narrator") continue;
       styleMap[speaker] = SPEAKER_STYLES[idx % SPEAKER_STYLES.length];
       idx++;
     }
-
     return styleMap;
   }
 
-  const speakerStyleMap = result ? getSpeakerStyleMap(result.voiceMap) : {};
-  const toneMap = result
-    ? Object.fromEntries((result.dialogueTones ?? []).map((tone) => [tone.lineIndex, tone]))
-    : ({} as Record<number, DialogueTone>);
-  const sceneSfxMap = result ? Object.fromEntries((result.sfxList ?? []).map((sfx) => [sfx.sceneIndex, sfx.prompt])) : {};
+  function getSpeakerColorMap(voiceMap: Record<string, VoiceInfo>) {
+    const map: Record<string, string> = {};
+    let idx = 0;
+    for (const k of Object.keys(voiceMap)) {
+      if (k === "narrator") continue;
+      map[k] = SPEAKER_COLORS[idx++ % SPEAKER_COLORS.length];
+    }
+    return map;
+  }
 
+  const speakerStyleMap = result ? getSpeakerStyleMap(result.voiceMap) : {};
+  const speakerColorMap = result ? getSpeakerColorMap(result.voiceMap) : {};
+  const toneMap = result
+    ? Object.fromEntries((result.dialogueTones ?? []).map((t) => [t.lineIndex, t]))
+    : ({} as Record<number, DialogueTone>);
+  const sceneSfxMap = result
+    ? Object.fromEntries((result.sfxList ?? []).map((sfx) => [sfx.sceneIndex, sfx.prompt]))
+    : {};
+
+  const frameByScene: Record<number, StoryboardFrame> = result
+    ? Object.fromEntries(result.storyboardFrames.map((f) => [f.sceneIndex, f]))
+    : {};
+  const linesByScene: Record<number, ScriptDialogueLine[]> = result
+    ? result.scenes.reduce((acc, s) => {
+        acc[s.index] = result.dialogueLines.filter((l) => l.sceneIndex === s.index);
+        return acc;
+      }, {} as Record<number, ScriptDialogueLine[]>)
+    : {};
+
+  const currentFrame = result ? frameByScene[currentScene] : undefined;
+  const currentSceneData = result?.scenes[currentScene];
+  const currentSceneMusic = result?.musicList?.find((m) => m.sceneIndex === currentScene);
+  const sceneStartTimes = result?.sceneStartTimes ?? [];
+  const playheadPct = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0;
+
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="upload-page">
       <header className="site-header">
@@ -373,23 +511,179 @@ export default function UploadPage() {
               priority
             />
           </Link>
-
           <nav className="main-nav" aria-label="Primary">
             <Link href="/">Home</Link>
             <a href="#studio">Studio</a>
             <a href="#results">Results</a>
           </nav>
-
           <div className="header-actions">
-            <Link className="btn btn-secondary" href="/">
-              Back home
-            </Link>
+            <Link className="btn btn-secondary" href="/">Back home</Link>
           </div>
         </div>
       </header>
 
+      {/* ── HERO FRAME ──────────────────────────────────────────────────────── */}
+      {result && (
+        <section className="w-full bg-black shrink-0 flex justify-center">
+          <div className="relative" style={{ lineHeight: 0 }}>
+            {currentFrame ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={currentScene}
+                src={`data:${currentFrame.mimeType};base64,${currentFrame.imageBase64}`}
+                alt={currentSceneData?.heading ?? ""}
+                className="block max-h-[62vh] w-auto max-w-full"
+                style={{ animation: "sceneFadeIn 0.5s ease-out" }}
+              />
+            ) : (
+              <div
+                className="flex items-center justify-center bg-zinc-900"
+                style={{ width: "min(80vw, 62vh * 16 / 9)", height: "min(62vh, 80vw * 9 / 16)" }}
+              >
+                <span className="text-zinc-600 font-mono text-sm">No image</span>
+              </div>
+            )}
+
+            {/* Scene heading — top-left */}
+            {currentSceneData?.heading && (
+              <div className="absolute top-4 left-4 font-mono text-xs text-white/80 bg-black/70 px-3 py-1.5 rounded backdrop-blur-sm tracking-widest uppercase">
+                {currentSceneData.heading}
+              </div>
+            )}
+
+            {/* Ambiance music indicator — top-right */}
+            {currentSceneMusic && (
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-black/70 backdrop-blur-sm px-2.5 py-1.5 rounded">
+                <span className="text-violet-400 text-[11px]">♪</span>
+                <span className="font-mono text-[10px] text-violet-300/80 tracking-wide max-w-[160px] truncate">
+                  {currentSceneMusic.prompt}
+                </span>
+              </div>
+            )}
+
+            {/* SRT stamp — bottom-center */}
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-center">
+              <div className="font-mono text-xs text-white/40 tracking-widest mb-0.5">
+                SRT {currentScene + 1}
+              </div>
+              <div className="font-mono text-sm text-white bg-black/80 px-4 py-1.5 rounded-sm backdrop-blur-sm tracking-wider leading-none">
+                {toSRT(sceneStartTimes[currentScene] ?? 0)} → {toSRT(sceneEndTime(currentScene))}
+              </div>
+            </div>
+
+            {/* Active dialogue lines — bottom strip */}
+            {(() => {
+              const lines = linesByScene[currentScene] ?? [];
+              if (!lines.length) return null;
+              return (
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent px-6 py-4 pt-10">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {lines.slice(0, 3).map((line) => {
+                      const color = speakerColorMap[line.character] ?? SPEAKER_COLORS[0];
+                      return (
+                        <div key={line.lineIndex} className="text-xs leading-snug">
+                          <span className={`font-bold uppercase tracking-widest ${color}`}>{line.character} </span>
+                          <span className="text-zinc-300 italic">
+                            &ldquo;{line.text.slice(0, 60)}{line.text.length > 60 ? "…" : ""}&rdquo;
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {lines.length > 3 && (
+                      <span className="text-zinc-500 text-xs">+{lines.length - 3} more</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </section>
+      )}
+
+      {/* ── TIMELINE + AUDIO ─────────────────────────────────────────────────── */}
+      {result && audioUrl && (
+        <section className="px-6 py-4 space-y-3 shrink-0 border-b border-zinc-800" style={{ background: "#0a0a0a" }}>
+
+          {/* Scene timeline scrubber */}
+          <div
+            ref={timelineRef}
+            className="relative h-16 rounded-xl overflow-hidden cursor-ew-resize select-none bg-zinc-900 group"
+            onMouseDown={handleTimelineMouseDown}
+            onMouseMove={handleTimelineMouseMove}
+            onMouseUp={handleTimelineMouseUp}
+            onMouseLeave={handleTimelineMouseUp}
+          >
+            {result.scenes.map((scene, i) => {
+              const start = sceneStartTimes[i] ?? 0;
+              const end = sceneEndTime(i);
+              const leftPct  = totalDuration > 0 ? (start / totalDuration) * 100 : (i / result.scenes.length) * 100;
+              const widthPct = totalDuration > 0
+                ? ((end - start) / totalDuration) * 100
+                : (100 / result.scenes.length);
+              const frame = frameByScene[scene.index];
+              const isActive = i === currentScene;
+
+              return (
+                <div
+                  key={i}
+                  ref={(el) => { cardRefs.current[i] = el; }}
+                  className="absolute top-0 h-full border-r border-zinc-800/60 overflow-hidden"
+                  style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                  onClick={(e) => { e.stopPropagation(); seekToScene(i); }}
+                >
+                  {frame && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`data:${frame.mimeType};base64,${frame.imageBase64}`}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  <div className={`absolute inset-0 transition-colors duration-200 ${
+                    isActive ? "bg-amber-500/20" : "bg-zinc-950/55 group-hover:bg-zinc-950/40"
+                  }`} />
+                  {isActive && <div className="absolute inset-0 ring-2 ring-inset ring-amber-500" />}
+                  <div className="absolute bottom-1 left-1.5 font-mono text-[8px] text-white/60 leading-tight">
+                    {formatTime(start)}
+                  </div>
+                  <div className="absolute top-1 left-1.5 font-mono text-[8px] text-white/30">
+                    {i + 1}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Playhead */}
+            {totalDuration > 0 && (
+              <div
+                className="absolute top-0 bottom-0 w-px bg-amber-400 z-20 pointer-events-none"
+                style={{ left: `${playheadPct}%` }}
+              >
+                <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 bg-amber-400 rounded-full shadow shadow-amber-400/50" />
+              </div>
+            )}
+
+            {/* Time label at playhead */}
+            {totalDuration > 0 && (
+              <div
+                className="absolute bottom-1 font-mono text-[8px] text-amber-400 z-20 pointer-events-none -translate-x-1/2"
+                style={{ left: `${playheadPct}%` }}
+              >
+                {formatTime(currentTime)}
+              </div>
+            )}
+          </div>
+
+          {/* Audio player */}
+          <audio ref={audioRef} controls src={audioUrl} className="w-full rounded-lg" />
+        </section>
+      )}
+
+      {/* ── UPLOAD + PREVIEW ─────────────────────────────────────────────────── */}
       <main className="section">
         <div className="container upload-main" id="studio">
+
+          {/* Studio / input card */}
           <section className="studio-card">
             <p className="eyebrow">Upload page</p>
             <h1 className="upload-title">Upload script and generate audio.</h1>
@@ -430,16 +724,13 @@ export default function UploadPage() {
                   <span className="dropzone-title">Drop your PDF or TXT file here</span>
                   <span className="dropzone-subtitle">or click to choose a file</span>
                 </label>
-
                 {selectedFileName && <p className="file-chip">Selected: {selectedFileName}</p>}
                 <p className="mode-note">For PDFs, paste script text below before generating.</p>
               </div>
             )}
 
             <div className="upload-mode-card">
-              <label htmlFor="script-text" className="field-label">
-                Script text
-              </label>
+              <label htmlFor="script-text" className="field-label">Script text</label>
               <textarea
                 id="script-text"
                 className="script-textarea"
@@ -458,11 +749,11 @@ export default function UploadPage() {
             </div>
           </section>
 
+          {/* Preview / results card */}
           <section className="studio-card" id="results">
             <h2 className="panel-title">Preview</h2>
-            {audioUrl ? (
-              <audio controls src={audioUrl} className="audio-player" />
-            ) : (
+
+            {!audioUrl && (
               <p className="placeholder-copy">Generated audio will appear here.</p>
             )}
 
@@ -475,7 +766,7 @@ export default function UploadPage() {
                     return (
                       <article
                         key={speaker}
-                        className={`voice-chip ${speaker === "narrator" ? "speaker-chip-neutral" : style?.chipClass ?? "speaker-chip-rose"}`}
+                        className={`voice-chip ${speaker === "narrator" ? "speaker-chip-neutral" : (style?.chipClass ?? "speaker-chip-rose")}`}
                       >
                         <strong>{speaker}</strong>
                         <span>{voice.name}</span>
@@ -490,16 +781,16 @@ export default function UploadPage() {
             {result && result.dialogueLines.length > 0 && (
               <div className="segments-wrap">
                 <h3 className="subhead">Script scenes and lines</h3>
-
                 <div className="scene-list">
                   {result.scenes.map((scene) => (
                     <article key={scene.index} className="scene-card">
                       <div className="scene-head">
                         <p className="scene-heading">{scene.heading}</p>
-                        {sceneSfxMap[scene.index] && <span className="sfx-pill">SFX: {sceneSfxMap[scene.index]}</span>}
+                        {sceneSfxMap[scene.index] && (
+                          <span className="sfx-pill">SFX: {sceneSfxMap[scene.index]}</span>
+                        )}
                       </div>
                       <p className="scene-action">{scene.action}</p>
-
                       <div className="segment-list">
                         {result.dialogueLines
                           .filter((line) => line.sceneIndex === scene.index)
@@ -513,7 +804,9 @@ export default function UploadPage() {
                               >
                                 <div className="dialogue-head">
                                   <span className="speaker-tag">{line.character}</span>
-                                  {line.parenthetical && <span className="parenthetical-tag">({line.parenthetical})</span>}
+                                  {line.parenthetical && (
+                                    <span className="parenthetical-tag">({line.parenthetical})</span>
+                                  )}
                                   {tone && <span className="tone-tag">{tone.emotion}</span>}
                                 </div>
                                 <p>{line.text}</p>
