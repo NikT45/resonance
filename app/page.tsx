@@ -20,7 +20,7 @@ interface DialogueTone { segmentIndex: number; stability: number; style: number;
 interface GenerateResponse {
   segments: Segment[];
   voiceMap: Record<string, VoiceInfo>;
-  audioBase64: string;
+  segmentsAudio: string[];
   segmentTimings: SegmentTiming[];
   sfxList: SfxItem[];
   dialogueTones: DialogueTone[];
@@ -74,34 +74,67 @@ function audioBufferToWav(buf: AudioBuffer): ArrayBuffer {
   return ab;
 }
 
-async function mixAudio(speechBase64: string, sfxList: SfxItem[]): Promise<string> {
-  const speechBytes = Uint8Array.from(atob(speechBase64), c => c.charCodeAt(0));
-  const tempCtx = new AudioContext();
-  const speechBuf = await tempCtx.decodeAudioData(speechBytes.buffer.slice(0));
-  await tempCtx.close();
+// Gaps inserted between segments for natural cadence
+const GAP_NAR_TO_DLG = 0.22;  // pause before a character speaks
+const GAP_DLG_TO_NAR = 0.18;  // pause before narration resumes
+const GAP_DLG_TO_DLG = 0.12;  // brief beat between different speakers
 
+async function decodeB64Audio(b64: string): Promise<AudioBuffer> {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const ctx = new AudioContext();
+  const buf = await ctx.decodeAudioData(bytes.buffer.slice(0));
+  await ctx.close();
+  return buf;
+}
+
+async function mixAudio(segmentsAudio: string[], segments: Segment[], sfxList: SfxItem[]): Promise<string> {
+  // Decode all speech segments
+  const segBuffers: AudioBuffer[] = [];
+  for (const b64 of segmentsAudio) {
+    try { segBuffers.push(await decodeB64Audio(b64)); }
+    catch { segBuffers.push(new AudioContext().createBuffer(1, 1, 44100)); }
+  }
+
+  // Calculate absolute start times with cadence gaps
+  const startTimes: number[] = [];
+  let cursor = 0;
+  for (let i = 0; i < segments.length; i++) {
+    if (i > 0) {
+      const prev = segments[i - 1];
+      const curr = segments[i];
+      if (prev.type === "narration" && curr.type === "dialogue") cursor += GAP_NAR_TO_DLG;
+      else if (prev.type === "dialogue" && curr.type === "narration") cursor += GAP_DLG_TO_NAR;
+      else if (prev.type === "dialogue" && curr.type === "dialogue") cursor += GAP_DLG_TO_DLG;
+    }
+    startTimes.push(cursor);
+    cursor += segBuffers[i]?.duration ?? 0;
+  }
+
+  // Decode SFX — position by looking up the narration segment's calculated start time
   const sfxDecoded: { buffer: AudioBuffer; startTime: number }[] = [];
   for (const sfx of sfxList) {
     try {
-      const bytes = Uint8Array.from(atob(sfx.audioBase64), c => c.charCodeAt(0));
-      const ctx = new AudioContext(); const buf = await ctx.decodeAudioData(bytes.buffer.slice(0)); await ctx.close();
-      sfxDecoded.push({ buffer: buf, startTime: sfx.startTime });
+      const buf = await decodeB64Audio(sfx.audioBase64);
+      const t = startTimes[sfx.segmentIndex] ?? sfx.startTime;
+      sfxDecoded.push({ buffer: buf, startTime: t });
     } catch { /* skip */ }
   }
 
-  const totalDuration = sfxDecoded.reduce(
-    (max, { buffer, startTime }) => Math.max(max, startTime + buffer.duration),
-    speechBuf.duration
-  );
-  const offCtx = new OfflineAudioContext(
-    speechBuf.numberOfChannels,
-    Math.ceil(totalDuration * speechBuf.sampleRate),
-    speechBuf.sampleRate
+  const sampleRate = segBuffers[0]?.sampleRate ?? 44100;
+  const numChannels = segBuffers[0]?.numberOfChannels ?? 1;
+  const totalDuration = Math.max(
+    cursor,
+    sfxDecoded.reduce((m, { buffer, startTime }) => Math.max(m, startTime + buffer.duration), 0)
   );
 
-  const speechSrc = offCtx.createBufferSource();
-  speechSrc.buffer = speechBuf;
-  speechSrc.connect(offCtx.destination); speechSrc.start(0);
+  const offCtx = new OfflineAudioContext(numChannels, Math.ceil(totalDuration * sampleRate), sampleRate);
+
+  for (let i = 0; i < segBuffers.length; i++) {
+    const src = offCtx.createBufferSource();
+    src.buffer = segBuffers[i];
+    src.connect(offCtx.destination);
+    src.start(startTimes[i]);
+  }
 
   for (const { buffer, startTime } of sfxDecoded) {
     const src = offCtx.createBufferSource(); src.buffer = buffer;
@@ -150,7 +183,7 @@ export default function Home() {
       }
 
       setStatus("Mixing audio with sound effects...");
-      const url = await mixAudio(data.audioBase64, data.sfxList ?? []);
+      const url = await mixAudio(data.segmentsAudio, data.segments, data.sfxList ?? []);
       prevAudioUrl.current = url;
       setAudioUrl(url);
       setResult(data);

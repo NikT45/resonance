@@ -279,8 +279,7 @@ ${fullPassage}`;
       timeOffset += segDuration;
     }
 
-    const combinedAudio = Buffer.concat(audioBuffers);
-    const audioBase64 = combinedAudio.toString("base64");
+    const segmentsAudio = audioBuffers.map(b => b.toString("base64"));
 
     // Step 5: Parallel SFX generation
     const sfxList: SfxItem[] = [];
@@ -306,7 +305,7 @@ ${fullPassage}`;
       responseVoiceMap[speaker] = { name: assignment.voiceName, description: assignment.description };
     }
 
-    return NextResponse.json({ segments, voiceMap: responseVoiceMap, audioBase64, segmentTimings, sfxList, dialogueTones });
+    return NextResponse.json({ segments, voiceMap: responseVoiceMap, segmentsAudio, segmentTimings, sfxList, dialogueTones });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
