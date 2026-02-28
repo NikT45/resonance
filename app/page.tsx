@@ -13,10 +13,17 @@ interface VoiceInfo {
   description: string;
 }
 
+interface SegmentTiming { segmentIndex: number; startTime: number; endTime: number; }
+interface SfxItem { segmentIndex: number; prompt: string; startTime: number; audioBase64: string; }
+interface DialogueTone { segmentIndex: number; stability: number; style: number; emotion: string; }
+
 interface GenerateResponse {
   segments: Segment[];
   voiceMap: Record<string, VoiceInfo>;
   audioBase64: string;
+  segmentTimings: SegmentTiming[];
+  sfxList: SfxItem[];
+  dialogueTones: DialogueTone[];
   error?: string;
 }
 
@@ -44,12 +51,75 @@ He finally raised his eyes to meet hers — pale, watery, but still sharp. "All 
 
 He set down the teapot and stared into the fire for a long moment. "Then we have perhaps two days," he murmured, more to himself than to her. "Perhaps less."`;
 
+// WAV encoder helpers
+function writeString(view: DataView, offset: number, str: string) {
+  for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+}
+
+function audioBufferToWav(buf: AudioBuffer): ArrayBuffer {
+  const numCh = buf.numberOfChannels, sr = buf.sampleRate, len = buf.length;
+  const dataSize = len * numCh * 2;
+  const ab = new ArrayBuffer(44 + dataSize); const v = new DataView(ab);
+  writeString(v, 0, "RIFF"); v.setUint32(4, 36 + dataSize, true); writeString(v, 8, "WAVE");
+  writeString(v, 12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+  v.setUint16(22, numCh, true); v.setUint32(24, sr, true);
+  v.setUint32(28, sr * numCh * 2, true); v.setUint16(32, numCh * 2, true); v.setUint16(34, 16, true);
+  writeString(v, 36, "data"); v.setUint32(40, dataSize, true);
+  let off = 44;
+  for (let f = 0; f < len; f++)
+    for (let ch = 0; ch < numCh; ch++) {
+      const s = Math.max(-1, Math.min(1, buf.getChannelData(ch)[f]));
+      v.setInt16(off, s < 0 ? s * 32768 : s * 32767, true); off += 2;
+    }
+  return ab;
+}
+
+async function mixAudio(speechBase64: string, sfxList: SfxItem[]): Promise<string> {
+  const speechBytes = Uint8Array.from(atob(speechBase64), c => c.charCodeAt(0));
+  const tempCtx = new AudioContext();
+  const speechBuf = await tempCtx.decodeAudioData(speechBytes.buffer.slice(0));
+  await tempCtx.close();
+
+  const sfxDecoded: { buffer: AudioBuffer; startTime: number }[] = [];
+  for (const sfx of sfxList) {
+    try {
+      const bytes = Uint8Array.from(atob(sfx.audioBase64), c => c.charCodeAt(0));
+      const ctx = new AudioContext(); const buf = await ctx.decodeAudioData(bytes.buffer.slice(0)); await ctx.close();
+      sfxDecoded.push({ buffer: buf, startTime: sfx.startTime });
+    } catch { /* skip */ }
+  }
+
+  const totalDuration = sfxDecoded.reduce(
+    (max, { buffer, startTime }) => Math.max(max, startTime + buffer.duration),
+    speechBuf.duration
+  );
+  const offCtx = new OfflineAudioContext(
+    speechBuf.numberOfChannels,
+    Math.ceil(totalDuration * speechBuf.sampleRate),
+    speechBuf.sampleRate
+  );
+
+  const speechSrc = offCtx.createBufferSource();
+  speechSrc.buffer = speechBuf;
+  speechSrc.connect(offCtx.destination); speechSrc.start(0);
+
+  for (const { buffer, startTime } of sfxDecoded) {
+    const src = offCtx.createBufferSource(); src.buffer = buffer;
+    const gain = offCtx.createGain(); gain.gain.value = 0.6;
+    src.connect(gain); gain.connect(offCtx.destination); src.start(startTime);
+  }
+
+  const rendered = await offCtx.startRendering();
+  return URL.createObjectURL(new Blob([audioBufferToWav(rendered)], { type: "audio/wav" }));
+}
+
 export default function Home() {
   const [text, setText] = useState(SAMPLE_TEXT);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [debugOpen, setDebugOpen] = useState(false);
   const prevAudioUrl = useRef<string | null>(null);
 
   async function handleGenerate() {
@@ -79,10 +149,8 @@ export default function Home() {
         return;
       }
 
-      // Decode base64 → Blob URL
-      const bytes = Uint8Array.from(atob(data.audioBase64), (c) => c.charCodeAt(0));
-      const blob = new Blob([bytes], { type: "audio/mpeg" });
-      const url = URL.createObjectURL(blob);
+      setStatus("Mixing audio with sound effects...");
+      const url = await mixAudio(data.audioBase64, data.sfxList ?? []);
       prevAudioUrl.current = url;
       setAudioUrl(url);
       setResult(data);
@@ -107,6 +175,8 @@ export default function Home() {
   }
 
   const speakerColorMap = result ? getSpeakerColorMap(result.voiceMap) : {};
+  const sfxMap = result ? Object.fromEntries((result.sfxList ?? []).map(s => [s.segmentIndex, s.prompt])) : {};
+  const toneMap = result ? Object.fromEntries((result.dialogueTones ?? []).map(t => [t.segmentIndex, t])) : {} as Record<number, DialogueTone>;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-serif">
@@ -202,6 +272,91 @@ export default function Home() {
           </section>
         )}
 
+        {/* Debug Panel */}
+        {result && (
+          <section className="mb-8">
+            <button
+              onClick={() => setDebugOpen(o => !o)}
+              className="flex items-center gap-2 text-xs font-sans font-semibold text-zinc-500 tracking-widest uppercase hover:text-zinc-300 transition-colors"
+            >
+              <svg className={`h-3 w-3 transition-transform ${debugOpen ? "rotate-90" : ""}`} viewBox="0 0 6 10" fill="currentColor">
+                <path d="M1 1l4 4-4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              ElevenLabs API Calls ({result.segments.length + (result.sfxList?.length ?? 0)})
+            </button>
+
+            {debugOpen && (
+              <div className="mt-3 rounded-lg border border-zinc-800 overflow-hidden font-mono text-xs">
+                {/* TTS calls */}
+                <div className="px-3 py-2 bg-zinc-900 border-b border-zinc-800 text-zinc-500 uppercase tracking-widest text-[10px] font-sans font-semibold">
+                  Text-to-Speech · convertWithTimestamps · eleven_multilingual_v2
+                </div>
+                {result.segments.map((seg, i) => {
+                  const speakerKey = seg.type === "narration" ? "narrator" : (seg.speaker ?? "unknown");
+                  const voice = result.voiceMap[speakerKey] ?? result.voiceMap["narrator"];
+                  const timing = result.segmentTimings?.find(t => t.segmentIndex === i);
+                  const tone = result.dialogueTones?.find(t => t.segmentIndex === i);
+                  const s = seg.type === "narration"
+                    ? { stability: 0.65, style: 0.1 }
+                    : { stability: tone?.stability ?? 0.35, style: tone?.style ?? 0.6 };
+                  const settings = `stability: ${s.stability.toFixed(2)}  similarity: 0.80  style: ${s.style.toFixed(2)}`;
+                  return (
+                    <div key={i} className="flex gap-0 border-b border-zinc-800/60 last:border-0">
+                      <div className="shrink-0 w-8 flex items-start justify-center pt-3 text-zinc-600">{i}</div>
+                      <div className="flex-1 px-2 py-2.5 border-l border-zinc-800/60 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={seg.type === "narration" ? "text-zinc-400" : "text-sky-400"}>
+                            {seg.type}
+                          </span>
+                          {seg.speaker && <span className="text-zinc-600">·</span>}
+                          {seg.speaker && <span className="text-sky-300">{seg.speaker}</span>}
+                          {tone && <span className="text-zinc-500 italic">{tone.emotion}</span>}
+                          <span className="text-zinc-600">→</span>
+                          <span className="text-amber-400">{voice?.name}</span>
+                          <span className="text-zinc-600 italic">{voice?.description}</span>
+                          {timing && (
+                            <span className="text-zinc-600 ml-auto">
+                              {timing.startTime.toFixed(2)}s – {timing.endTime.toFixed(2)}s
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-zinc-600">{settings}</div>
+                        <div className="text-zinc-300 leading-relaxed line-clamp-2">&ldquo;{seg.text}&rdquo;</div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* SFX calls */}
+                {(result.sfxList?.length ?? 0) > 0 && (
+                  <>
+                    <div className="px-3 py-2 bg-zinc-900 border-t border-b border-zinc-800 text-zinc-500 uppercase tracking-widest text-[10px] font-sans font-semibold">
+                      Sound Effects · textToSoundEffects.convert · duration: 3s · prompt_influence: 0.3
+                    </div>
+                    {result.sfxList.map((sfx, i) => {
+                      const timing = result.segmentTimings?.find(t => t.segmentIndex === sfx.segmentIndex);
+                      return (
+                        <div key={i} className="flex gap-0 border-b border-zinc-800/60 last:border-0">
+                          <div className="shrink-0 w-8 flex items-start justify-center pt-3 text-zinc-600">{sfx.segmentIndex}</div>
+                          <div className="flex-1 px-2 py-2.5 border-l border-zinc-800/60 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-amber-400">🔊 {sfx.prompt}</span>
+                              {timing && (
+                                <span className="text-zinc-600 ml-auto">@ {sfx.startTime.toFixed(2)}s</span>
+                              )}
+                            </div>
+                            <div className="text-zinc-600">text: &ldquo;{sfx.prompt}&rdquo;  duration_seconds: 3  prompt_influence: 0.3</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Segment List */}
         {result && result.segments.length > 0 && (
           <section>
@@ -217,6 +372,11 @@ export default function Home() {
                       className="px-4 py-3 rounded-lg bg-zinc-800/50 border border-zinc-800 text-zinc-400 text-sm leading-relaxed italic font-serif"
                     >
                       {seg.text}
+                      {sfxMap[i] && (
+                        <span className="not-italic ml-2 inline-flex items-center gap-1 text-xs font-sans text-amber-400 border border-amber-800 bg-amber-950/40 rounded px-1.5 py-0.5">
+                          🔊 {sfxMap[i]}
+                        </span>
+                      )}
                     </div>
                   );
                 }
@@ -224,15 +384,23 @@ export default function Home() {
                 const speaker = seg.speaker ?? "unknown";
                 const colorClass = speakerColorMap[speaker] ?? SPEAKER_COLORS[0];
                 const [textColor, borderColor, bgColor] = colorClass.split(" ");
+                const tone = toneMap[i];
 
                 return (
                   <div
                     key={i}
                     className={`px-4 py-3 rounded-lg border text-sm leading-relaxed font-serif ${borderColor} ${bgColor}`}
                   >
-                    <span className={`block text-xs font-sans font-bold tracking-widest uppercase mb-1 ${textColor}`}>
-                      {speaker}
-                    </span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-xs font-sans font-bold tracking-widest uppercase ${textColor}`}>
+                        {speaker}
+                      </span>
+                      {tone && (
+                        <span className="inline-flex items-center text-xs font-sans text-zinc-400 border border-zinc-700 bg-zinc-800/60 rounded px-1.5 py-0.5 italic">
+                          {tone.emotion}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-zinc-200">{seg.text}</span>
                   </div>
                 );
