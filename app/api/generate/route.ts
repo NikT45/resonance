@@ -486,19 +486,26 @@ ${scenes.map(s => `${s.index}: "${s.heading}" — ${s.action.slice(0, 180)}`).jo
       cursor += lineDurations[i] ?? 0;
     }
 
-    const sceneStartTimes: number[] = [];
-    for (const scene of scenes) {
+    // Two-pass sceneStartTimes: anchor on scenes with dialogue, then interpolate
+    // between anchors so visual-only sub-scenes don't bunch up at the start.
+    const rawTimes: (number | null)[] = scenes.map((scene) => {
       const firstLine = dialogueLines.find(l => l.sceneIndex === scene.index);
-      if (firstLine) {
-        sceneStartTimes.push(lineStartTimes[firstLine.lineIndex]);
-      } else {
-        const prevSceneLastLine = [...dialogueLines].reverse().find(l => l.sceneIndex === scene.index - 1);
-        const prevEnd = prevSceneLastLine
-          ? lineStartTimes[prevSceneLastLine.lineIndex] + (lineDurations[prevSceneLastLine.lineIndex] ?? 0)
-          : sceneStartTimes[sceneStartTimes.length - 1] ?? 0;
-        sceneStartTimes.push(prevEnd + 1.5);
-      }
-    }
+      return firstLine ? lineStartTimes[firstLine.lineIndex] : null;
+    });
+
+    const sceneStartTimes: number[] = rawTimes.map((t, i) => {
+      if (t !== null) return t;
+      // Find surrounding anchors
+      let prevIdx = i - 1;
+      while (prevIdx >= 0 && rawTimes[prevIdx] === null) prevIdx--;
+      let nextIdx = i + 1;
+      while (nextIdx < rawTimes.length && rawTimes[nextIdx] === null) nextIdx++;
+      const prevTime = prevIdx >= 0 ? (rawTimes[prevIdx] as number) : 0;
+      const nextTime = nextIdx < rawTimes.length ? (rawTimes[nextIdx] as number) : cursor;
+      // Linearly interpolate between the two nearest anchors
+      const span = nextIdx - prevIdx;
+      return prevTime + ((i - prevIdx) / span) * (nextTime - prevTime);
+    });
 
     // ── Step 6a: Parallel Lyria ambiance music generation ────────────────────
     const musicList: MusicItem[] = [];
