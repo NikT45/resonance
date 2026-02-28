@@ -50,6 +50,7 @@ if ('IntersectionObserver' in window) {
 
 if (heroGenreWheel) {
   const genres = [
+    { key: 'script', name: 'Your Script' },
     { key: 'fantasy', name: 'Fantasy' },
     { key: 'romance', name: 'Romance' },
     { key: 'sci-fi', name: 'Sci-Fi' },

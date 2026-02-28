@@ -198,6 +198,16 @@ a {
   box-shadow: 0 14px 30px rgba(59, 130, 246, 0.27);
 }
 
+.btn-upload {
+  background: #1e3a8a;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(30, 58, 138, 0.28);
+}
+
+.btn-upload:hover {
+  box-shadow: 0 14px 30px rgba(30, 58, 138, 0.34);
+}
+
 .btn-secondary,
 .btn-ghost {
   background: #fff;
@@ -265,29 +275,39 @@ h1 {
 .hero-carousel-row {
   position: relative;
   z-index: 1;
-  margin-top: var(--space-16);
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.45rem;
+  margin-top: 0.45rem;
+  margin-bottom: 0;
   font-family: "Sora", sans-serif;
   color: var(--ink);
-  font-size: clamp(1.05rem, 2.2vw, 1.35rem);
+  font-size: clamp(2.4rem, 7vw, 3.9rem);
+  line-height: 1.05;
+  max-width: 14ch;
+}
+
+.hero-wheel-row {
+  position: relative;
+  z-index: 1;
+  margin-top: 0.35rem;
+  margin-bottom: 0;
+  font-size: clamp(2.4rem, 7vw, 3.9rem);
+  line-height: 1.05;
+  min-height: 1.1em;
 }
 
 .hero-wheel-window {
   position: relative;
   display: inline-flex;
-  align-items: center;
-  height: 1.55em;
+  align-items: baseline;
+  height: 1.1em;
   overflow: hidden;
-  min-width: 8ch;
+  min-width: 10ch;
 }
 
 .hero-wheel-text {
   display: inline-block;
   line-height: 1;
-  transition: transform 0.16s ease, opacity 0.16s ease;
+  font-family: "Sora", sans-serif;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .hero-wheel-text.is-exit {
@@ -298,6 +318,11 @@ h1 {
 .hero-wheel-text.is-enter {
   transform: translateY(-12px);
   opacity: 0;
+}
+
+.hero-wheel-text.script {
+  font-family: "Sora", sans-serif;
+  color: var(--ink);
 }
 
 .hero-wheel-text.romance {
@@ -343,7 +368,7 @@ h1 {
 .hero-subtitle {
   position: relative;
   z-index: 1;
-  margin-top: 0.7rem;
+  margin-top: 1rem;
   max-width: 78ch;
   color: var(--muted);
   font-size: 0.95rem;
@@ -385,6 +410,15 @@ h1 {
 .story-card p:last-child {
   margin-top: 0.5rem;
   color: var(--muted);
+}
+
+.story-points {
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  display: grid;
+  gap: 0.32rem;
 }
 
 .section-head {

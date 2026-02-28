@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resonance | Upload Script</title>
+    <meta
+      name="description"
+      content="Upload a script as PDF or text, then shape pacing, sound effects, background tracks, and emotional intensity."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Sora:wght@500;600;700&family=Cinzel:wght@600;700&family=Creepster&family=Great+Vibes&family=Kalam:wght@400;700&family=Orbitron:wght@500;700&family=Playfair+Display:wght@600;700&family=Special+Elite&family=Ubuntu:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="upload.css" />
+  </head>
+  <body>
+    <div class="upload-shell">
+      <header class="upload-header">
+        <a class="brand" href="index.html" aria-label="Back to home">
+          <img src="assets/logo/resonance-logo-book-transparent.png" alt="Resonance" class="brand-logo" />
+        </a>
+        <div class="header-actions">
+          <a class="btn btn-ghost" href="index.html">Back Home</a>
+          <button class="btn btn-primary" type="button">Generate Preview</button>
+        </div>
+      </header>
+
+      <main class="studio-layout">
+        <section class="chat-column" aria-label="Script upload chat">
+          <div class="panel-head">
+            <p class="kicker">Script Studio</p>
+            <h1>Upload Your Script</h1>
+            <p>
+              Add your script as a PDF or paste text, then shape how the story sounds and feels before generating the
+              full immersive output.
+            </p>
+          </div>
+
+          <div class="chat-thread">
+            <article class="bubble assistant">
+              <p>Welcome. Choose how you want to upload your script.</p>
+            </article>
+            <article class="bubble user">
+              <p>I want to test a short scene and tune the mood.</p>
+            </article>
+            <article class="bubble assistant">
+              <p>Great. Upload a PDF or paste text below. Settings are in the hidden panel on the right.</p>
+            </article>
+          </div>
+
+          <section class="composer" aria-label="Script input">
+            <div class="mode-tabs" role="tablist" aria-label="Input mode">
+              <button class="mode-tab active" id="mode-pdf-btn" data-mode="pdf" role="tab" aria-selected="true">
+                PDF Upload
+              </button>
+              <button class="mode-tab" id="mode-text-btn" data-mode="text" role="tab" aria-selected="false">
+                Text Box
+              </button>
+            </div>
+
+            <div class="mode-panel active" id="mode-pdf" role="tabpanel" aria-labelledby="mode-pdf-btn">
+              <label class="dropzone">
+                <input type="file" accept=".pdf,application/pdf" />
+                <span class="dropzone-title">Drop your PDF script here</span>
+                <span class="dropzone-subtitle">or click to choose a file</span>
+              </label>
+            </div>
+
+            <div class="mode-panel" id="mode-text" role="tabpanel" aria-labelledby="mode-text-btn">
+              <label for="script-text" class="text-label">Paste your script text</label>
+              <textarea
+                id="script-text"
+                rows="10"
+                placeholder="INT. APARTMENT - NIGHT&#10;The room is quiet except for distant rain..."
+              ></textarea>
+            </div>
+
+            <div class="composer-actions">
+              <button class="btn btn-primary" type="button">Create Story Experience</button>
+            </div>
+          </section>
+        </section>
+
+        <aside class="settings-column" aria-label="Hidden story settings">
+          <details class="settings-drawer">
+            <summary>Story Settings</summary>
+            <div class="settings-content">
+              <label class="setting-row" for="pace">
+                <span>Pace of the story</span>
+                <input type="range" id="pace" min="0" max="100" value="50" />
+                <small id="pace-label">Balanced</small>
+              </label>
+
+              <label class="setting-row switch-row" for="sfx">
+                <span>Sound effects</span>
+                <input id="sfx" type="checkbox" checked />
+              </label>
+
+              <label class="setting-row" for="background">
+                <span>Background noise / soundtrack amount</span>
+                <input type="range" id="background" min="0" max="100" value="45" />
+                <small id="background-label">Moderate</small>
+              </label>
+
+              <label class="setting-row" for="emotion">
+                <span>Emotionalness of the story</span>
+                <input type="range" id="emotion" min="0" max="100" value="60" />
+                <small id="emotion-label">Expressive</small>
+              </label>
+            </div>
+          </details>
+
+          <section class="settings-note">
+            <h2>Preview Notes</h2>
+            <p>
+              This is a mock-up. The controls are wired for interaction and state labels, ready to connect to your
+              generation backend.
+            </p>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script src="upload.js"></script>
+  </body>
+</html>
