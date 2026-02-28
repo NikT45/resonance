@@ -118,21 +118,31 @@ async function generateLyriaMusic(
     });
 
     ws.on("open", () => {
+      console.log("[LYRIA] connected, sending setup");
       ws.send(JSON.stringify({ setup: { model: "models/lyria-realtime-exp" } }));
     });
 
     ws.on("message", (raw: Buffer | string) => {
+      const rawStr = raw.toString();
+      console.log("[LYRIA] message:", rawStr.slice(0, 600));
+
       let msg: Record<string, unknown>;
-      try { msg = JSON.parse(raw.toString()) as Record<string, unknown>; }
-      catch { return; }
+      try { msg = JSON.parse(rawStr) as Record<string, unknown>; }
+      catch (e) { console.warn("[LYRIA] non-JSON message, length:", rawStr.length); return; }
 
       if (msg.setupComplete !== undefined) {
+        console.log("[LYRIA] setupComplete — sending prompt + PLAY");
         ws.send(JSON.stringify({ clientContent: { weightedPrompts: [{ text: musicPrompt, weight: 1.0 }] } }));
         ws.send(JSON.stringify({ playbackControl: "PLAY" }));
       }
 
+      if (msg.filteredPrompt !== undefined) {
+        console.warn("[LYRIA] prompt filtered:", JSON.stringify(msg.filteredPrompt));
+      }
+
       const audioChunks = (msg as { serverContent?: { audioChunks?: { data?: string }[] } })
         .serverContent?.audioChunks ?? [];
+      if (audioChunks.length) console.log("[LYRIA] audio chunks received:", audioChunks.length, "totalBytes so far:", totalBytes);
       for (const chunk of audioChunks) {
         if (chunk.data && !finished) {
           const buf = Buffer.from(chunk.data, "base64");
@@ -144,7 +154,10 @@ async function generateLyriaMusic(
     });
 
     ws.on("error", (e: Error) => { console.error("[LYRIA] ws error:", e.message); clearTimeout(timer); finish(); });
-    ws.on("close", () => { clearTimeout(timer); finish(); });
+    ws.on("close", (code: number, reason: Buffer) => {
+      console.log("[LYRIA] closed — code:", code, "reason:", reason.toString(), "chunks:", chunks.length, "bytes:", totalBytes);
+      clearTimeout(timer); finish();
+    });
   });
 }
 
@@ -309,6 +322,7 @@ ${text.slice(0, 1500)}`;
         `Film storyboard panel. Hand-drawn rough black marker sketch on white paper. ` +
         `Bold thick lines, gestural style, black and white only, no color, ` +
         `like a professional director's storyboard. ` +
+        `NO TEXT, NO WORDS, NO LETTERS, NO LABELS, NO CAPTIONS anywhere in the image. ` +
         `Scene: ${scene.heading}. ${scene.action.slice(0, 200)}`;
 
       for (let attempt = 0; attempt <= 2; attempt++) {
